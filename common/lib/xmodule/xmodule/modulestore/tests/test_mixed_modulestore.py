@@ -263,6 +263,16 @@ class TestMixedModuleStore(object):
         assert_equals(Location(parents[0]).course, 'toy')
         assert_equals(Location(parents[0]).name, '2012_Fall')
 
+    def test_get_courses_for_wiki(self):
+        """
+        Test the get_courses_for_wiki method
+        """
+        assert_equals(len(self.store.get_courses_for_wiki('toy')), 1)
+        assert_equals(len(self.store.get_courses_for_wiki('simple')), 1)
+        assert_equals(len(self.store.get_courses_for_wiki('edX.simple.2012_Fall')), 0)
+        assert_equals(len(self.store.get_courses_for_wiki('no_such_wiki')), 0)
+
+
 class TestMixedMSInit(unittest.TestCase):
     """
     Test initializing w/o a reference_type

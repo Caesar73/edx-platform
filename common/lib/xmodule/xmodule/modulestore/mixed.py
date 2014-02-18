@@ -395,3 +395,14 @@ class MixedModuleStore(ModuleStoreWriteBase):
         store = self._get_modulestore_for_courseid(location.package_id)
         decoded_ref = self._incoming_reference_adaptor(store, location.package_id, location)
         return store.delete_item(decoded_ref, **kwargs)
+
+    def get_courses_for_wiki(self, wiki_slug):
+        """
+        Return the list of courses which use this wiki_slug
+        :param wiki_slug: the course wiki root slug
+        :return: list of course locations
+        """
+        courses = []
+        for modulestore in self.modulestores.values():
+            courses.extend(modulestore.get_courses_for_wiki(wiki_slug))
+        return courses
