@@ -10,10 +10,10 @@ in-browser HTML5 video method (when in HTML5 mode).
 in XML.
 """
 
-import os
 import json
 import logging
 from operator import itemgetter
+from HTMLParser import HTMLParser
 
 from lxml import etree
 from pkg_resources import resource_string
@@ -156,6 +156,15 @@ class VideoFields(object):
         scope=Scope.preferences,
         default="en"
     )
+    transcript_format = String(
+        help="Transcript file format to download by user.",
+        scope=Scope.preferences,
+        values=[
+            {"display_name": "SubRip (.srt) file", "value": "srt"},
+            {"display_name": "Text (.txt) file", "value": "txt"}
+        ],
+        default='srt',
+    )
     speed = Float(
         help="The last speed that was explicitly set by user for the video.",
         scope=Scope.user_state,
@@ -194,6 +203,7 @@ class VideoModule(VideoFields, XModule):
             resource_string(module, 'js/src/video/025_focus_grabber.js'),
             resource_string(module, 'js/src/video/02_html5_video.js'),
             resource_string(module, 'js/src/video/03_video_player.js'),
+            resource_string(module, 'js/src/video/035_video_accessible_menu.js'),
             resource_string(module, 'js/src/video/04_video_control.js'),
             resource_string(module, 'js/src/video/05_video_quality_control.js'),
             resource_string(module, 'js/src/video/06_video_progress_slider.js'),
@@ -203,20 +213,33 @@ class VideoModule(VideoFields, XModule):
             resource_string(module, 'js/src/video/10_main.js')
         ]
     }
-    css = {'scss': [resource_string(module, 'css/video/display.scss')]}
+    css = {'scss': [
+        resource_string(module, 'css/video/display.scss'),
+        resource_string(module, 'css/video/accessible_menu.scss'),
+    ]}
     js_module_name = "Video"
 
     def handle_ajax(self, dispatch, data):
-        accepted_keys = ['speed', 'saved_video_position', 'transcript_language']
-        if dispatch == 'save_user_state':
+        accepted_keys = [
+            'speed', 'saved_video_position', 'transcript_language',
+            'transcript_format',
+        ]
 
+        conversions = {
+            'speed': json.loads,
+            'saved_video_position': lambda v: RelativeTime.isotime_to_timedelta(v),
+        }
+
+        if dispatch == 'save_user_state':
             for key in data:
                 if hasattr(self, key) and key in accepted_keys:
-                    if key == 'saved_video_position':
-                        relative_position = RelativeTime.isotime_to_timedelta(data[key])
-                        self.saved_video_position = relative_position
+                    if key in conversions:
+                        value = conversions[key](data[key])
                     else:
-                        setattr(self, key, json.loads(data[key]))
+                        value = data[key]
+
+                    setattr(self, key, value)
+
                     if key == 'speed':
                         self.global_speed = self.speed
 
@@ -268,6 +291,9 @@ class VideoModule(VideoFields, XModule):
         # OrderedDict for easy testing of rendered context in tests
         sorted_languages = OrderedDict(sorted(languages.items(), key=itemgetter(1)))
 
+        transcript_formats_list = self.descriptor.fields['transcript_format'].values
+        transcript_formats = {i['display_name']: i['value'] for i in transcript_formats_list}
+
         return self.system.render_template('video.html', {
             'ajax_url': self.system.ajax_url + '/save_user_state',
             'autoplay': settings.FEATURES.get('AUTOPLAY_VIDEOS', False),
@@ -290,13 +316,15 @@ class VideoModule(VideoFields, XModule):
             # configuration setting field.
             'yt_test_timeout': 1500,
             'yt_test_url': settings.YOUTUBE_TEST_URL,
+            'transcript_format': self.transcript_format,
+            'transcript_formats_list': transcript_formats,
             'transcript_language': transcript_language,
             'transcript_languages': json.dumps(sorted_languages),
             'transcript_translation_url': self.runtime.handler_url(self, 'transcript').rstrip('/?') + '/translation',
             'transcript_available_translations_url': self.runtime.handler_url(self, 'transcript').rstrip('/?') + '/available_translations',
         })
 
-    def get_transcript(self):
+    def get_transcript(self, format='srt'):
         """
         Returns transcript in *.srt format.
 
@@ -308,12 +336,16 @@ class VideoModule(VideoFields, XModule):
         lang = self.transcript_language
         subs_id = self.sub if lang == 'en' else self.youtube_id_1_0
         data = asset(self.location, subs_id, lang).data
-        str_subs = generate_srt_from_sjson(json.loads(data), speed=1.0)
+        if format == 'txt':
+            text = json.loads(data)['text']
+            str_subs = HTMLParser().unescape("\n".join(text))
+        else:
+            str_subs = generate_srt_from_sjson(json.loads(data), speed=1.0)
         if not str_subs:
             log.debug('generate_srt_from_sjson produces no subtitles')
             raise ValueError
 
-        return str_subs
+        return str_subs, format
 
     @XBlock.handler
     def transcript(self, request, dispatch):
@@ -351,7 +383,7 @@ class VideoModule(VideoFields, XModule):
 
         elif dispatch == 'download':
             try:
-                subs = self.get_transcript()
+                subs, format = self.get_transcript(format=self.transcript_format)
             except (NotFoundError, ValueError, KeyError):
                 log.debug("Video@download exception")
                 response = Response(status=404)
@@ -359,7 +391,10 @@ class VideoModule(VideoFields, XModule):
                 response = Response(
                     subs,
                     headerlist=[
-                        ('Content-Disposition', 'attachment; filename="{0}.srt"'.format(self.transcript_language)),
+                        ('Content-Disposition', 'attachment; filename="{filename}.{format}"'.format(
+                            filename=self.transcript_language,
+                            format=format,
+                        )),
                     ]
                 )
                 response.content_type = "application/x-subrip"

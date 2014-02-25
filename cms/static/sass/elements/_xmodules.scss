@@ -22,6 +22,15 @@
     .video-controls .add-fullscreen {
       display: none !important; // nasty, but needed to override the bad specificity of the xmodule css selectors
     }
+
+    .video-tracks {
+      .menu-container {
+        .menu {
+          bottom: 100%;
+          top: auto;
+        }
+      }
+    }
   }
 }
 

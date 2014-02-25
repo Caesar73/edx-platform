@@ -48,11 +48,11 @@ div.video {
       display: inline-block;
       margin: ($baseline*.75) ($baseline/2) 0 0;
 
-      a {
+      > a {
         @include transition(all 0.25s ease-in-out 0s);
         @include font-size(14);
         display: inline-block;
-        border-radius: 3px 3px 3px 3px;
+        border-radius: 3px 0 0 3px;
         background-color: $very-light-text;
         padding: ($baseline*.75);
         color: $lighter-base-font-color;
@@ -319,17 +319,6 @@ div.video {
 
         .menu-container {
           float: left;
-          position: relative;
-
-          &.open {
-            .menu {
-              display: block;
-              opacity: 1;
-              padding: 0;
-              margin: 0;
-              list-style: none;
-            }
-          }
 
           .menu {
             @include transition(none);
@@ -337,10 +326,7 @@ div.video {
             background-color: #444;
             border: 1px solid #000;
             bottom: 46px;
-            display: none;
-            opacity: 0;
-            position: absolute;
-            z-index: 10;
+            top: auto;
 
             li {
               box-shadow:  0 1px 0 #555;
