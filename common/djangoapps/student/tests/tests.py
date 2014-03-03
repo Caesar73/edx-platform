@@ -170,7 +170,7 @@ class ResetPasswordTests(TestCase):
 
         good_reset_req = self.request_factory.get('/password_reset_confirm/{0}-{1}/'.format(self.uidb36, self.token))
         password_reset_confirm_wrapper(good_reset_req, self.uidb36, self.token)
-        (confirm_args, confirm_kwargs) = reset_confirm.call_args
+        (_, confirm_kwargs) = reset_confirm.call_args
         self.assertEquals(confirm_kwargs['uidb36'], self.uidb36)
         self.assertEquals(confirm_kwargs['token'], self.token)
         self.user = User.objects.get(pk=self.user.pk)

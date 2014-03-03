@@ -28,6 +28,9 @@ class TestPasswordHistory(TestCase):
         history.create(user)
 
     def _user_factory_with_history(self, is_staff=False):
+        """
+        Helper method to generate either an Admin or a User
+        """
         if is_staff:
             user = AdminFactory()
         else:
@@ -91,7 +94,6 @@ class TestPasswordHistory(TestCase):
         # also create a user who doesn't have any history
         grandfathered_student = UserFactory()
         grandfathered_student.date_joined = timezone.now()
-        grandfathered_student.save()
 
         self.assertFalse(PasswordHistory.should_user_reset_password_now(student))
         self.assertFalse(PasswordHistory.should_user_reset_password_now(staff))
@@ -103,7 +105,7 @@ class TestPasswordHistory(TestCase):
             self.assertFalse(PasswordHistory.should_user_reset_password_now(grandfathered_student))
             self.assertTrue(PasswordHistory.should_user_reset_password_now(staff))
 
-            self._change_password(staff,'Different')
+            self._change_password(staff, 'Different')
             self.assertFalse(PasswordHistory.should_user_reset_password_now(staff))
 
         student_reset_time = timezone.now() + timedelta(days=5)
@@ -113,13 +115,13 @@ class TestPasswordHistory(TestCase):
             self.assertTrue(PasswordHistory.should_user_reset_password_now(grandfathered_student))
             self.assertTrue(PasswordHistory.should_user_reset_password_now(staff))
 
-            self._change_password(student,'Different')
+            self._change_password(student, 'Different')
             self.assertFalse(PasswordHistory.should_user_reset_password_now(student))
 
-            self._change_password(grandfathered_student,'Different')
+            self._change_password(grandfathered_student, 'Different')
             self.assertFalse(PasswordHistory.should_user_reset_password_now(grandfathered_student))
 
-            self._change_password(staff,'Different')
+            self._change_password(staff, 'Different')
             self.assertFalse(PasswordHistory.should_user_reset_password_now(staff))
 
     @patch.dict("django.conf.settings.ADVANCED_SECURITY_CONFIG", {'MIN_DAYS_FOR_STAFF_ACCOUNTS_PASSWORD_RESETS': None})
@@ -134,7 +136,6 @@ class TestPasswordHistory(TestCase):
         # also create a user who doesn't have any history
         grandfathered_student = UserFactory()
         grandfathered_student.date_joined = timezone.now()
-        grandfathered_student.save()
 
         self.assertFalse(PasswordHistory.should_user_reset_password_now(student))
         self.assertFalse(PasswordHistory.should_user_reset_password_now(staff))
