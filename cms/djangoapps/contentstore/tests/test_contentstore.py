@@ -1914,6 +1914,14 @@ class ContentStoreTest(ModuleStoreTestCase):
         _test_no_locations(self, resp)
         return resp
 
+    def test_wiki_slug(self):
+        """When creating a course a unique wiki_slug should be set."""
+
+        course_location = Location(['i4x', 'MITx', '999', 'course', '2013_Spring'])
+        _create_course(self, self.course_data)
+        course_module = modulestore('direct').get_item(course_location)
+        self.assertEquals(course_module.wiki_slug, 'MITx.999.2013_Spring')
+
 
 @override_settings(MODULESTORE=TEST_MODULESTORE)
 class MetadataSaveTestCase(ModuleStoreTestCase):
