@@ -1412,6 +1412,7 @@ def password_reset_confirm_wrapper(
         Needed because we want to set the user as active at this step.
     """
     # cribbed from django.contrib.auth.views.password_reset_confirm
+    user = None
     try:
         uid_int = base36_to_int(uidb36)
         user = User.objects.get(id=uid_int)
@@ -1461,20 +1462,22 @@ def password_reset_confirm_wrapper(
         # we also want to pass settings.PLATFORM_NAME in as extra_context
         extra_context = {"platform_name": settings.PLATFORM_NAME}
 
-        # remember what the old password hash is before we call down
-        old_password_hash = user.password
+        if user:
+            # remember what the old password hash is before we call down
+            old_password_hash = user.password
 
         result = password_reset_confirm(
             request, uidb36=uidb36, token=token, extra_context=extra_context
         )
 
-        # get the updated used
-        updated_user = User.objects.get(id=uid_int)
+        if user:
+            # get the updated user
+            updated_user = User.objects.get(id=uid_int)
 
-        # did the password hash change, if so record it in the PasswordHistory
-        if updated_user.password != old_password_hash:
-            entry = PasswordHistory()
-            entry.create(updated_user)
+            # did the password hash change, if so record it in the PasswordHistory
+            if updated_user.password != old_password_hash:
+                entry = PasswordHistory()
+                entry.create(updated_user)
 
         return result
 

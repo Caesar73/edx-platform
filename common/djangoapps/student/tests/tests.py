@@ -164,6 +164,18 @@ class ResetPasswordTests(TestCase):
         self.user = User.objects.get(pk=self.user.pk)
         self.assertTrue(self.user.is_active)
 
+    @patch('student.views.password_reset_confirm')
+    def test_reset_password_with_reused_password(self, reset_confirm):
+        """Tests good token and uidb36 in password reset"""
+
+        good_reset_req = self.request_factory.get('/password_reset_confirm/{0}-{1}/'.format(self.uidb36, self.token))
+        password_reset_confirm_wrapper(good_reset_req, self.uidb36, self.token)
+        (confirm_args, confirm_kwargs) = reset_confirm.call_args
+        self.assertEquals(confirm_kwargs['uidb36'], self.uidb36)
+        self.assertEquals(confirm_kwargs['token'], self.token)
+        self.user = User.objects.get(pk=self.user.pk)
+        self.assertTrue(self.user.is_active)
+
 
 class CourseEndingTest(TestCase):
     """Test things related to course endings: certificates, surveys, etc"""
