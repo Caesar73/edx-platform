@@ -744,13 +744,6 @@ def login_user(request, error=""):
 
     # see if the user must reset his/her password due to any policy settings
     if PasswordHistory.should_user_reset_password_now(user_found_by_email_lookup):
-        # If so, then email then don't log them in and send them a password reset email
-        # form = PasswordResetFormNoActive(request.GET)
-        # form.email = user_found_by_email_lookup.email
-        # form.save(use_https=request.is_secure(),
-        #          from_email=settings.DEFAULT_FROM_EMAIL,
-        #          request=request,
-        #          domain_override=request.get_host())
         return JsonResponse({
             "success": False,
             "value": _('Your password has expired due to password policy on this account. You must reset your password before you can log in again. Please click the "Forgot Password" link on this page to reset your password before logging in again.'),

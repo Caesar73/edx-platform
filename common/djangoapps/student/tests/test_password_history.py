@@ -162,7 +162,7 @@ class TestPasswordHistory(TestCase):
     @patch.dict("django.conf.settings.ADVANCED_SECURITY_CONFIG", {'MIN_TIME_IN_DAYS_BETWEEN_ALLOWED_RESETS': None})
     def test_disabled_too_frequent_password_resets(self):
         """
-        Assert that a user should not be able to password reset too frequently
+        Verify properly default behavior when feature is disabled
         """
         student = self._user_factory_with_history()
 

@@ -5,7 +5,6 @@ import json
 from mock import patch
 from uuid import uuid4
 
-from django.conf import settings
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
