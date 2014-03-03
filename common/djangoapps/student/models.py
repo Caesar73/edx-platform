@@ -396,7 +396,7 @@ class PasswordHistory(models.Model):
         """
         Asserts that the password is not getting reset too frequently
         """
-        if not cls.is_password_reset_frequency_restricted:
+        if not cls.is_password_reset_frequency_restricted():
             return True
 
         history = PasswordHistory.objects.filter(user=user).order_by('-time_set')
@@ -408,7 +408,7 @@ class PasswordHistory(models.Model):
 
         delta = now - history[0].time_set
 
-        return delta.days > settings.ADVANCED_SECURITY_CONFIG['MIN_TIME_IN_DAYS_BETWEEN_ALLOWED_RESETS']
+        return delta.days >= settings.ADVANCED_SECURITY_CONFIG['MIN_TIME_IN_DAYS_BETWEEN_ALLOWED_RESETS']
 
     @classmethod
     def validate_password_reuse(cls, user, new_password):

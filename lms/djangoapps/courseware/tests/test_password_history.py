@@ -10,6 +10,8 @@ from django.utils import timezone
 from datetime import timedelta
 
 from django.core.urlresolvers import reverse
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import int_to_base36
 
 from freezegun import freeze_time
 
@@ -43,7 +45,7 @@ class TestPasswordHistory(LoginEnrollmentTestCase):
         Override the base implementation to randomize the email
         """
         email = 'foo_{0}@test.com'.format(uuid4().hex[:8])
-        password = 'bar'
+        password = 'foo'
         username = 'test_{0}'.format(uuid4().hex[:8])
         self.create_account(username, email, password)
         self.activate_user(email)
@@ -118,3 +120,196 @@ class TestPasswordHistory(LoginEnrollmentTestCase):
                        err_msg_check="Your password has expired due to password policy on this account")
             self._update_password(staff_email, "updated2")
             self.login(staff_email, "updated2")
+
+    def test_allow_all_password_reuse(self):
+        """
+        Tests that password_reset flows work as expected if reuse config is missing, meaning
+        passwords can always be reused
+        """
+        student_email, student_password = self.setup_user()
+        user = User.objects.get(email=student_email)
+
+        err_msg = 'You are re-using a password that you have used recently.'
+
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        # try to do a password reset with the same password as before
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foo'
+        }, follow=True)
+
+        self.assertNotIn(
+            err_msg,
+            resp.content
+        )
+
+    @patch.dict("django.conf.settings.ADVANCED_SECURITY_CONFIG", {'MIN_DIFFERENT_STUDENT_PASSWORDS_BEFORE_REUSE': 1})
+    def test_student_password_reset_reuse(self):
+        """
+        Goes through the password reset flows to make sure the various password reuse policies are enforced
+        """
+        student_email, student_password = self.setup_user()
+        user = User.objects.get(email=student_email)
+
+        err_msg = 'You are re-using a password that you have used recently. You must have 1 distinct password(s)'
+        success_msg = 'Your Password Reset is Complete'
+
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        # try to do a password reset with the same password as before
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foo'
+        }, follow=True)
+
+        self.assertIn(
+            err_msg,
+            resp.content
+        )
+
+        # now retry with a different password
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'bar',
+            'new_password2': 'bar'
+        }, follow=True)
+
+        self.assertIn(
+            success_msg,
+            resp.content
+        )
+
+    @patch.dict("django.conf.settings.ADVANCED_SECURITY_CONFIG", {'MIN_DIFFERENT_STAFF_PASSWORDS_BEFORE_REUSE': 2})
+    def test_staff_password_reset_reuse(self):
+        """
+        Goes through the password reset flows to make sure the various password reuse policies are enforced
+        """
+        staff_email, staff_password = self.setup_user(is_staff=True)
+        user = User.objects.get(email=staff_email)
+
+        err_msg = 'You are re-using a password that you have used recently. You must have 2 distinct password(s)'
+        success_msg = 'Your Password Reset is Complete'
+
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        # try to do a password reset with the same password as before
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foo',
+        }, follow=True)
+
+        self.assertIn(
+            err_msg,
+            resp.content
+        )
+
+        # now use different one
+        user = User.objects.get(email=staff_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'bar',
+            'new_password2': 'bar',
+        }, follow=True)
+
+        self.assertIn(
+            success_msg,
+            resp.content
+        )
+
+        # now try again with the first one
+        user = User.objects.get(email=staff_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foo',
+        }, follow=True)
+
+        # should be rejected
+        self.assertIn(
+            err_msg,
+            resp.content
+        )
+
+        # now use different one
+        user = User.objects.get(email=staff_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'baz',
+            'new_password2': 'baz',
+        }, follow=True)
+
+        self.assertIn(
+            success_msg,
+            resp.content
+        )
+
+        # now we should be able to reuse the first one
+        user = User.objects.get(email=staff_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foo',
+        }, follow=True)
+
+        self.assertIn(
+            success_msg,
+            resp.content
+        )
+
+    @patch.dict("django.conf.settings.ADVANCED_SECURITY_CONFIG", {'MIN_TIME_IN_DAYS_BETWEEN_ALLOWED_RESETS': 1})
+    def test_password_reset_frequency_limit(self):
+        """
+        Asserts the frequency limit on how often we can change passwords
+        """
+        staff_email, staff_password = self.setup_user(is_staff=True)
+
+        success_msg = 'Your Password Reset is Complete'
+
+        user = User.objects.get(email=staff_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        # try to reset password, it should fail
+        user = User.objects.get(email=staff_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        # try to do a password reset with the same password as before
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foo',
+        }, follow=True)
+
+        self.assertNotIn(
+            success_msg,
+            resp.content
+        )
+
+        # pretend we're in the future
+        staff_reset_time = timezone.now() + timedelta(days=1)
+        with freeze_time(staff_reset_time):
+            user = User.objects.get(email=staff_email)
+            token = default_token_generator.make_token(user)
+            uidb36 = int_to_base36(user.id)
+
+            # try to do a password reset with the same password as before
+            resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+                'new_password1': 'foo',
+                'new_password2': 'foo',
+            }, follow=True)
+
+            self.assertIn(
+                success_msg,
+                resp.content
+            )
