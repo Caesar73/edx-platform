@@ -431,8 +431,13 @@ class PasswordHistory(models.Model):
 
         for entry in history:
             # be sure to re-use the same salt
+            # NOTE, how the salt is serialized in the password field is dependent on the algorithm
+            # in pbkdf2_sha256 [LMS] it's the 3rd element, in sha1 [unit tests] it's the 2nd element
             hash_elements = entry.password.split('$')
-            hashed_password = make_password(new_password, hash_elements[1])
+            if hash_elements[0] == 'pbkdf2_sha256':
+                hashed_password = make_password(new_password, hash_elements[2])
+            else:
+                hashed_password = make_password(new_password, hash_elements[1])
 
             if entry.password != hashed_password:
                 reuse_distance = reuse_distance + 1

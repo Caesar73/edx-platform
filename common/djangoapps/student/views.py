@@ -30,6 +30,8 @@ from django.utils.http import cookie_date, base36_to_int
 from django.utils.translation import ugettext as _
 from django.views.decorators.http import require_POST, require_GET
 
+from django.template.response import TemplateResponse
+
 from ratelimitbackend.exceptions import RateLimitException
 
 from edxmako.shortcuts import render_to_response, render_to_string
@@ -1417,12 +1419,64 @@ def password_reset_confirm_wrapper(
         user.save()
     except (ValueError, User.DoesNotExist):
         pass
-    # we also want to pass settings.PLATFORM_NAME in as extra_context
 
-    extra_context = {"platform_name": settings.PLATFORM_NAME}
-    return password_reset_confirm(
-        request, uidb36=uidb36, token=token, extra_context=extra_context
-    )
+    # tie in password strength enforcement as an optional level of
+    # security protection
+    err_msg = None
+
+    if request.method == 'POST':
+        password = request.POST['new_password1']
+        if settings.FEATURES.get('ENFORCE_PASSWORD_POLICY', False):
+            try:
+                validate_password_length(password)
+                validate_password_complexity(password)
+                validate_password_dictionary(password)
+            except ValidationError, err:
+                err_msg = _('Password: ') + '; '.join(err.messages)
+
+        # also, check the password reuse policy
+        if not err_msg and not PasswordHistory.validate_password_reuse(user, password):
+            if user.is_staff:
+                num_distinct = settings.ADVANCED_SECURITY_CONFIG['MIN_DIFFERENT_STAFF_PASSWORDS_BEFORE_REUSE']
+            else:
+                num_distinct = settings.ADVANCED_SECURITY_CONFIG['MIN_DIFFERENT_STUDENT_PASSWORDS_BEFORE_REUSE']
+            err_msg = _("You are re-using a password that you have used recently. You must have {0} distinct password(s) before reusing a previous password.".format(num_distinct))
+
+        # also, check to see if passwords are getting reset too frequent
+        if not err_msg and not PasswordHistory.validate_password_reset_frequency(user):
+            num_days = settings.ADVANCED_SECURITY_CONFIG['MIN_TIME_IN_DAYS_BETWEEN_ALLOWED_RESETS']
+            err_msg = _("You are resetting passwords too frequently. Due to security policies, {0} day(s) must elapse between password resets".format(num_days))
+
+    if err_msg:
+        # We have an password reset attempt which violates some security policy, use the
+        # existing Django template to communicate this back to the user
+        context = {
+            'validlink': True,
+            'form': None,
+            'title': _('Password reset unsuccessful'),
+            'err_msg': err_msg,
+        }
+        return TemplateResponse(request, 'registration/password_reset_confirm.html', context)
+    else:
+        # we also want to pass settings.PLATFORM_NAME in as extra_context
+        extra_context = {"platform_name": settings.PLATFORM_NAME}
+
+        # remember what the old password hash is before we call down
+        old_password_hash = user.password
+
+        result = password_reset_confirm(
+            request, uidb36=uidb36, token=token, extra_context=extra_context
+        )
+
+        # get the updated used
+        updated_user = User.objects.get(id=uid_int)
+
+        # did the password hash change, if so record it in the PasswordHistory
+        if updated_user.password != old_password_hash:
+            entry = PasswordHistory()
+            entry.create(updated_user)
+
+        return result
 
 
 def reactivation_email_for_user(user):
