@@ -418,12 +418,12 @@ class PasswordHistory(models.Model):
         if not settings.FEATURES['ADVANCED_SECURITY']:
             return True
 
-        min_different_passwords_required = 0
+        min_diff_passwords_required = 0
         if user.is_staff:
             if cls.is_staff_password_reuse_restricted():
-                min_different_passwords_required = settings.ADVANCED_SECURITY_CONFIG['MIN_DIFFERENT_STAFF_PASSWORDS_BEFORE_REUSE']
+                min_diff_passwords_required = settings.ADVANCED_SECURITY_CONFIG['MIN_DIFFERENT_STAFF_PASSWORDS_BEFORE_REUSE']
         elif cls.is_student_password_reuse_restricted():
-            min_different_passwords_required = settings.ADVANCED_SECURITY_CONFIG['MIN_DIFFERENT_STUDENT_PASSWORDS_BEFORE_REUSE']
+            min_diff_passwords_required = settings.ADVANCED_SECURITY_CONFIG['MIN_DIFFERENT_STUDENT_PASSWORDS_BEFORE_REUSE']
 
         history = PasswordHistory.objects.filter(user=user).order_by('-time_set')
 
@@ -443,7 +443,7 @@ class PasswordHistory(models.Model):
                 reuse_distance = reuse_distance + 1
             else:
                 # found a reuse of passwords, was it far enough in the past?!?
-                return reuse_distance >= min_different_passwords_required
+                return reuse_distance >= min_diff_passwords_required
 
         return True
 

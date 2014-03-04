@@ -100,7 +100,7 @@ class TestPasswordHistory(LoginEnrollmentTestCase):
 
             # staff should fail because password expired
             self._login(staff_email, staff_password, should_succeed=False,
-                       err_msg_check="Your password has expired due to password policy on this account")
+                        err_msg_check="Your password has expired due to password policy on this account")
 
             # if we reset the password, we should be able to log in
             self._update_password(staff_email, "updated")
@@ -112,12 +112,12 @@ class TestPasswordHistory(LoginEnrollmentTestCase):
             # reset the password
 
             self._login(student_email, student_password, should_succeed=False,
-                       err_msg_check="Your password has expired due to password policy on this account")
+                        err_msg_check="Your password has expired due to password policy on this account")
             self._update_password(student_email, "updated")
             self._login(student_email, "updated")
 
             self._login(staff_email, staff_password, should_succeed=False,
-                       err_msg_check="Your password has expired due to password policy on this account")
+                        err_msg_check="Your password has expired due to password policy on this account")
             self._update_password(staff_email, "updated2")
             self._login(staff_email, "updated2")
 
